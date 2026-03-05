@@ -1,0 +1,10 @@
+.env
+*.env
+backend/.venv/
+gpu-server/.venv/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+tmp/
+.claude/settings.local.json
