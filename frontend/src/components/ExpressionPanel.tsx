@@ -1,11 +1,24 @@
-import { DEFAULT_KEY_BINDINGS } from "../types/avatar";
+import { KeyBinding } from "../types/avatar";
 
-export default function ExpressionPanel() {
+interface ExpressionPanelProps {
+  bindings: KeyBinding[];
+  onOpenEditor: () => void;
+}
+
+export default function ExpressionPanel({ bindings, onOpenEditor }: ExpressionPanelProps) {
   return (
     <div className="bg-gray-800 rounded-lg p-3 text-sm">
-      <h3 className="text-gray-300 font-bold mb-2">キーバインド表情</h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-gray-300 font-bold">キーバインド表情</h3>
+        <button
+          onClick={onOpenEditor}
+          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          設定
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-1">
-        {DEFAULT_KEY_BINDINGS.map((b) => (
+        {bindings.map((b) => (
           <div key={b.key} className="flex items-center gap-2 text-gray-400">
             <kbd className="bg-gray-700 px-2 py-0.5 rounded text-xs font-mono">
               {b.key}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { EmotionType, DEFAULT_KEY_BINDINGS } from "../types/avatar";
+import { EmotionType, KeyBinding } from "../types/avatar";
 
 interface WinkState {
   left: boolean;
@@ -7,16 +7,23 @@ interface WinkState {
 }
 
 export function useKeyBindings(
+  bindings: KeyBinding[],
   onEmotionChange: (emotion: EmotionType, intensity: number) => void,
   onWinkChange: (wink: WinkState) => void,
 ) {
   const activeEmotionRef = useRef<EmotionType>("neutral");
   const emotionTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const winkRef = useRef<WinkState>({ left: false, right: false });
+  const bindingsRef = useRef(bindings);
+  bindingsRef.current = bindings;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const binding = DEFAULT_KEY_BINDINGS.find((b) => b.key === e.key);
+      // テキスト入力中はキーバインド無効
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const binding = bindingsRef.current.find((b) => b.key === e.key);
       if (binding) {
         clearTimeout(emotionTimerRef.current);
         if (
