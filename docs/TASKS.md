@@ -1,33 +1,25 @@
 # shiver 開発タスク管理（v3.2）
 
-## 現在のフェーズ: Phase 1 (MVP)
+## 現在のフェーズ: Phase 2 (コア自動化)
 
-### Phase 1: MVP
+### Phase 1: MVP - 完了
 
 **目標**: カメラ顔追跡 + 手動PNGパーツ + 自動まばたきが動作する
 
-**事前チェック**: `python --version` (3.12), `node --version` (v20+), `nvidia-smi`
-
-| # | タスク | 状態 | 依存 |
-|---|--------|------|------|
-| 1.1 | プロジェクト初期化（frontend/backend/gpu-server ディレクトリ作成） | 完了 | - |
-| 1.2 | Backend: FastAPI起動 + `/health` エンドポイント | 完了 | 1.1 |
-| 1.3 | Frontend: React + Vite + TailwindCSS 初期セットアップ | 完了 | 1.1 |
-| 1.4 | Frontend: カメラ映像取得（CameraCapture コンポーネント） | 完了 | 1.3 |
-| 1.5 | Frontend: MediaPipe FaceLandmarker初期化 + 顔追跡 | 完了 | 1.4 |
-| 1.6 | Frontend: faceMapper.ts（ランドマーク→パラメータ変換 + 適応閾値） | 完了 | 1.5 |
-| 1.7 | Frontend: `public/test-parts/` に手動テストPNG配置 | 完了 | 1.3 |
-| 1.8 | Frontend: PixiJS AvatarRenderer（パーツ読み込み + 描画） | 完了 | 1.7 |
-| 1.9 | Frontend: まばたき・口開閉・眉上下・首振り（視差スクロール） | 完了 | 1.6, 1.8 |
-| 1.10 | Frontend: idleAnimator.ts（自動まばたき + 呼吸モーション） | 完了 | 1.8 |
-| 1.11 | Frontend: useFaceTracking.ts メインループ統合 | 完了 | 1.9, 1.10 |
-| 1.12 | Backend <-> Frontend WebSocket接続（顔パラメータストリーム） | 未着手 | 1.2, 1.11 |
-| 1.13 | エラー表示（ErrorToast コンポーネント、日本語メッセージ） | 完了 | 1.3 |
-
-**完了条件**:
-- [ ] カメラに向かって目を閉じるとアバターも閉じる
-- [ ] PCから離れても自動でまばたきし続ける
-- [ ] 呼吸モーションで体が微妙に上下する
+| # | タスク | 状態 |
+|---|--------|------|
+| 1.1 | プロジェクト初期化（frontend/backend/gpu-server ディレクトリ作成） | 完了 |
+| 1.2 | Backend: FastAPI起動 + `/health` エンドポイント | 完了 |
+| 1.3 | Frontend: React + Vite + TailwindCSS 初期セットアップ | 完了 |
+| 1.4 | Frontend: カメラ映像取得（CameraCapture コンポーネント） | 完了 |
+| 1.5 | Frontend: MediaPipe FaceLandmarker初期化 + 顔追跡 | 完了 |
+| 1.6 | Frontend: faceMapper.ts（ランドマーク→パラメータ変換 + 適応閾値） | 完了 |
+| 1.7 | Frontend: `public/test-parts/` に手動テストPNG配置 | 完了 |
+| 1.8 | Frontend: PixiJS AvatarRenderer（パーツ読み込み + 描画） | 完了 |
+| 1.9 | Frontend: まばたき・口開閉・眉上下・首振り（視差スクロール） | 完了 |
+| 1.10 | Frontend: idleAnimator.ts（自動まばたき + 呼吸モーション） | 完了 |
+| 1.11 | Frontend: useFaceTracking.ts メインループ統合 | 完了 |
+| 1.13 | エラー表示（ErrorToast コンポーネント、日本語メッセージ） | 完了 |
 
 ---
 
@@ -39,23 +31,23 @@
 
 | # | タスク | 状態 | 依存 |
 |---|--------|------|------|
-| 2.1 | GPU Server: FastAPI + SAM2モデルロード + `/health` | 未着手 | Phase1完了 |
-| 2.2 | GPU Server: `/segment` エンドポイント（Points+BBox対応） | 未着手 | 2.1 |
-| 2.3 | Backend: BaseImageGenerator（SD優先 / Gemini Flashフォールバック） | 未着手 | Phase1完了 |
-| 2.4 | Frontend: PromptInput コンポーネント（プロンプト入力UI） | 未着手 | Phase1完了 |
-| 2.5 | Frontend: 4枚生成→選択UI | 未着手 | 2.3, 2.4 |
-| 2.6 | Backend: SAM2マスク生成（normalized_to_pixel + compute_bbox_from_landmarks） | 未着手 | 2.2 |
-| 2.7 | Backend: 目3層分割マスク（瞳/白目/上まぶた） | 未着手 | 2.6 |
-| 2.8 | Backend: dilate_mask() マスク膨張処理 | 未着手 | 2.6 |
-| 2.9 | Backend: PartsGenerator（Gemini 2.5 Flash Image・依存グラフ・レート制限リトライ） | 未着手 | 2.6, 2.8 |
-| 2.10 | Backend: chroma_key_to_rgba()（グリーンバック透過 + rembgフォールバック） | 未着手 | 2.9 |
+| 2.1 | GPU Server: FastAPI + SAM2モデルロード + `/health` | 完了 | Phase1完了 |
+| 2.2 | GPU Server: `/segment` エンドポイント（Points+BBox対応） | 完了 | 2.1 |
+| 2.3 | Backend: BaseImageGenerator（SD優先 / Gemini Flashフォールバック） | 完了 | Phase1完了 |
+| 2.4 | Frontend: PromptInput コンポーネント（プロンプト入力UI） | 完了 | Phase1完了 |
+| 2.5 | Frontend: 4枚生成→選択UI | 完了 | 2.3, 2.4 |
+| 2.6 | Backend: SAM2マスク生成（normalized_to_pixel + compute_bbox_from_landmarks） | 完了 | 2.2 |
+| 2.7 | Backend: 目3層分割マスク（瞳/白目/上まぶた） | 完了 | 2.6 |
+| 2.8 | Backend: dilate_mask() マスク膨張処理 | 完了 | 2.6 |
+| 2.9 | Backend: PartsGenerator（Gemini 2.5 Flash Image・依存グラフ・レート制限リトライ） | 完了 | 2.6, 2.8 |
+| 2.10 | Backend: chroma_key_to_rgba()（グリーンバック透過 + rembgフォールバック） | 完了 | 2.9 |
 | 2.11 | Backend: パーツ生成品質確認（キャラ一貫性・隠れ部分補完・重ね合わせ自然さ） | 未着手 | 2.10 |
-| 2.12 | Frontend: 手動補正UI（PartEditor コンポーネント） | 未着手 | 2.10 |
-| 2.13 | Frontend: physicsEngine.ts（バネ振り子物理演算） | 未着手 | Phase1完了 |
-| 2.14 | Frontend: 髪パーツにSpringChain適用 | 未着手 | 2.13 |
-| 2.15 | Frontend: 瞳XY追跡（FaceBlendshapes連携） | 未着手 | Phase1完了 |
-| 2.16 | Frontend: useKeyBindings.ts（キーバインド表情） | 未着手 | Phase1完了 |
-| 2.17 | Frontend: ExpressionPanel コンポーネント（表情UI） | 未着手 | 2.16 |
+| 2.12 | Frontend: 手動補正UI（PartEditor コンポーネント） | 完了 | 2.10 |
+| 2.13 | Frontend: physicsEngine.ts（バネ振り子物理演算） | 完了 | Phase1完了 |
+| 2.14 | Frontend: 髪パーツにSpringChain適用 | 完了 | 2.13 |
+| 2.15 | Frontend: 瞳XY追跡（FaceBlendshapes連携） | 完了 | Phase1完了 |
+| 2.16 | Frontend: useKeyBindings.ts（キーバインド表情） | 完了 | Phase1完了 |
+| 2.17 | Frontend: ExpressionPanel コンポーネント（表情UI） | 完了 | 2.16 |
 
 **完了条件**:
 - [ ] プロンプト入力→10分以内にアバター完成（ベース60秒+SAM2 30秒+パーツ生成75秒+人間操作）
