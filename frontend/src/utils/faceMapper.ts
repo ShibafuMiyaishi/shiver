@@ -88,6 +88,13 @@ export function mapLandmarksToParams(
   const mar = calcMAR(mouthPts);
   marThreshold.update(mar);
 
+  // 口の横幅（リップシンク用）: 口角間の距離 / 顔幅で正規化
+  const mouthWidth = Math.abs(landmarks[291].x - landmarks[61].x);
+  const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x);
+  const mouthWidthRatio = faceWidth > 0 ? mouthWidth / faceWidth : 0.3;
+  // 0.25〜0.45の範囲を -1〜1 に正規化
+  const mouthForm = Math.min(1.0, Math.max(-1.0, (mouthWidthRatio - 0.35) * 10));
+
   const pupil = calcPupilXY(blendshapes);
 
   const browLeftY = landmarks[66].y;
@@ -129,6 +136,7 @@ export function mapLandmarksToParams(
     pupil_x: pupil.x,
     pupil_y: pupil.y,
     mouth_open: marThreshold.normalize(mar),
+    mouth_form: mouthForm,
     brow_left: browLeft,
     brow_right: browRight,
     head_yaw: headYaw,
@@ -148,6 +156,7 @@ export function getDefaultParams(): AvatarParameters {
     pupil_x: 0,
     pupil_y: 0,
     mouth_open: 0.0,
+    mouth_form: 0.0,
     brow_left: 0.0,
     brow_right: 0.0,
     head_yaw: 0.0,

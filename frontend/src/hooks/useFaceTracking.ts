@@ -16,6 +16,8 @@ export function useFaceTracking(
   const lastFrameRef = useRef(performance.now());
   const emotionRef = useRef<EmotionType>("neutral");
   const winkRef = useRef({ left: false, right: false });
+  const frameCountRef = useRef(0);
+  const cachedParamsRef = useRef<AvatarParameters>(getDefaultParams());
 
   const setEmotion = useCallback((emotion: EmotionType) => {
     emotionRef.current = emotion;
@@ -35,16 +37,18 @@ export function useFaceTracking(
     const deltaMs = now - lastFrameRef.current;
     lastFrameRef.current = now;
 
-    // A. 顔追跡パラメータ取得
-    let facialParams: AvatarParameters = getDefaultParams();
-    if (landmarkerRef.current && videoRef.current?.readyState === 4) {
+    // A. 顔追跡パラメータ取得（2フレームに1回検出、描画は毎フレーム）
+    frameCountRef.current++;
+    let facialParams: AvatarParameters;
+    const shouldDetect = frameCountRef.current % 2 === 0;
+    if (shouldDetect && landmarkerRef.current && videoRef.current?.readyState === 4) {
       try {
         const results = landmarkerRef.current.detectForVideo(
           videoRef.current,
           now,
         );
         if (results.faceLandmarks.length > 0) {
-          facialParams = mapLandmarksToParams(
+          cachedParamsRef.current = mapLandmarksToParams(
             results.faceLandmarks[0],
             results.faceBlendshapes?.[0]?.categories ?? [],
           );
@@ -53,6 +57,7 @@ export function useFaceTracking(
         // 検出失敗は無視
       }
     }
+    facialParams = cachedParamsRef.current;
 
     // B. アイドルアニメーション更新
     const { state: newIdleState, output: idle } = updateIdle(

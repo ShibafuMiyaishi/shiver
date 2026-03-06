@@ -114,13 +114,16 @@ export class AvatarRenderer {
       });
     }
 
-    // 口
+    // 口（リップシンク: mouth_open + mouth_form）
     const mouth = this.sprites.get("mouth");
     if (mouth) {
       mouth.scale.y =
         params.emotion === "happy"
           ? 0.5 + 0.3 * params.mouth_open
           : 0.6 + 0.6 * params.mouth_open;
+      // mouth_form: -1(すぼめ) ~ 1(横広)
+      // 横幅スケール: 0.7(すぼめ) ~ 1.3(横広)
+      mouth.scale.x = 1.0 + params.mouth_form * 0.3;
     }
 
     // 眉

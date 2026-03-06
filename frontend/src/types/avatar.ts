@@ -40,6 +40,7 @@ export interface AvatarParameters {
   pupil_x: number;
   pupil_y: number;
   mouth_open: number;
+  mouth_form: number;    // -1.0(すぼめ/u,o) ~ 1.0(横広/i,e) リップシンク用
   brow_left: number;
   brow_right: number;
   head_yaw: number;
