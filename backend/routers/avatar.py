@@ -3,7 +3,12 @@ import os
 
 from fastapi import APIRouter, HTTPException
 
-from models.schemas import PartsGenerateRequest, PartsGenerateResponse
+from models.schemas import (
+    PartsGenerateRequest,
+    PartsGenerateResponse,
+    SinglePartRegenerateRequest,
+    SinglePartRegenerateResponse,
+)
 from services.parts_generator import PartsGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["avatar"])
@@ -32,4 +37,27 @@ async def generate_parts(req: PartsGenerateRequest) -> PartsGenerateResponse:
         raise HTTPException(
             status_code=500,
             detail=f"パーツ生成中にエラーが発生しました: {e}",
+        ) from e
+
+
+@router.post("/regenerate-part", response_model=SinglePartRegenerateResponse)
+async def regenerate_part(
+    req: SinglePartRegenerateRequest,
+) -> SinglePartRegenerateResponse:
+    try:
+        generator = get_parts_generator()
+        result = await generator.regenerate_part(
+            base_image_b64=req.base_image_b64,
+            part_name=req.part_name,
+            mask_b64=req.mask_b64,
+            reference_parts=req.reference_parts,
+        )
+        return SinglePartRegenerateResponse(
+            part_name=req.part_name,
+            image_b64=result,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"パーツ再生成中にエラーが発生しました: {e}",
         ) from e

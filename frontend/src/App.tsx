@@ -9,6 +9,8 @@ import PromptInput from "./components/PromptInput";
 import { useFaceTracking } from "./hooks/useFaceTracking";
 import { useKeyBindings } from "./hooks/useKeyBindings";
 import { AvatarRenderer } from "./utils/pixiRenderer";
+import { detectLandmarksFromB64 } from "./utils/detectLandmarks";
+import { buildPartsFromB64 } from "./utils/partsBuilder";
 import { EmotionType } from "./types/avatar";
 
 type AppPhase = "idle" | "generating" | "selecting" | "segmenting" | "editing" | "live";
@@ -73,13 +75,19 @@ export default function App() {
     setPhase("segmenting");
 
     try {
-      // Step 1: SAM2セグメンテーション
+      // Step 1: ベース画像から顔ランドマーク検出
+      const landmarks = await detectLandmarksFromB64(imageB64);
+      if (landmarks.length === 0) {
+        throw new Error("ベース画像から顔を検出できませんでした。別の画像を選択してください。");
+      }
+
+      // Step 2: SAM2セグメンテーション
       const segRes = await fetch(`${apiBase}/api/v1/segment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image_b64: imageB64,
-          landmarks: [],
+          landmarks: landmarks.map(lm => ({ x: lm.x, y: lm.y, z: lm.z })),
           img_width: 512,
           img_height: 768,
         }),
@@ -94,7 +102,7 @@ export default function App() {
         if (r.mask_b64) masks[partId] = r.mask_b64;
       }
 
-      // Step 2: パーツ生成
+      // Step 3: パーツ生成
       const partsRes = await fetch(`${apiBase}/api/v1/generate-parts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,20 +136,20 @@ export default function App() {
     if (!selectedImageB64) return;
     setRegeneratingPart(partId);
     try {
-      const res = await fetch(`${apiBase}/api/v1/generate-parts`, {
+      const res = await fetch(`${apiBase}/api/v1/regenerate-part`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           base_image_b64: selectedImageB64,
-          masks: {},
+          part_name: partId,
         }),
       });
       if (!res.ok) throw new Error("再生成に失敗しました");
       const data = await res.json();
-      if (data.parts[partId]) {
+      if (data.image_b64) {
         setParts(prev => prev.map(p =>
           p.partId === partId
-            ? { ...p, hasImage: true, imageB64: data.parts[partId] }
+            ? { ...p, hasImage: true, imageB64: data.image_b64 }
             : p
         ));
       }
@@ -153,9 +161,19 @@ export default function App() {
   }, [apiBase, selectedImageB64, handleError]);
 
   const handleConfirmParts = useCallback(() => {
-    // TODO: 生成パーツをAvatarRendererに読み込む
+    if (!renderer) return;
+    const partsB64: Record<string, string | null> = {};
+    for (const p of parts) {
+      partsB64[p.partId] = p.imageB64 ?? null;
+    }
+    const avatarParts = buildPartsFromB64(partsB64);
+    if (avatarParts.length === 0) {
+      handleError("有効なパーツがありません。再生成してください。");
+      return;
+    }
+    renderer.loadParts(avatarParts);
     setPhase("live");
-  }, []);
+  }, [renderer, parts, handleError]);
 
   const isLoading = phase === "generating" || phase === "segmenting";
 

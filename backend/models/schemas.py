@@ -31,6 +31,18 @@ class PartsGenerateResponse(BaseModel):
     parts: dict[str, str | None]
 
 
+class SinglePartRegenerateRequest(BaseModel):
+    base_image_b64: str
+    part_name: str
+    mask_b64: str | None = None
+    reference_parts: dict[str, str] = {}
+
+
+class SinglePartRegenerateResponse(BaseModel):
+    part_name: str
+    image_b64: str | None
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str

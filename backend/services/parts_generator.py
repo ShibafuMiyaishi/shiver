@@ -207,6 +207,23 @@ class PartsGenerator:
 
         return completed
 
+    async def regenerate_part(
+        self,
+        base_image_b64: str,
+        part_name: str,
+        mask_b64: str | None = None,
+        reference_parts: dict[str, str | None] | None = None,
+    ) -> str:
+        """単一パーツを再生成する（公開メソッド）"""
+        semaphore = asyncio.Semaphore(1)
+        return await self._generate_single_part(
+            semaphore=semaphore,
+            base_image_b64=base_image_b64,
+            mask_b64=mask_b64,
+            part_name=part_name,
+            reference_parts=reference_parts or {},
+        )
+
     async def _generate_single_part(
         self,
         semaphore: asyncio.Semaphore,
