@@ -42,7 +42,18 @@ cd C:\dev\stable-diffusion-webui && .\webui-user.bat
 | Frontend | React 18 + TypeScript 5 + Vite 5 + PixiJS 7 + MediaPipe + Zustand + TailwindCSS |
 | Backend | FastAPI + Python 3.12 (localhost:8000) |
 | GPU Server | FastAPI + PyTorch CUDA + SAM2 (localhost:8001) |
-| 画像生成 | AUTOMATIC1111 SD WebUI (localhost:7860) / Gemini 2.5 Flash Image |
+| 画像生成(STAGE1) | SD WebUI + AnythingV5 / Waifu-Inpaint-XL (localhost:7860) |
+| 画像生成(STAGE2) | Gemini 2.5 Flash Image(実験) / Gemini 3 Pro Image(本番) |
+
+## v3.2 コアアーキテクチャ: 積み上げ方式
+
+旧方式（1枚絵をSAM2で切り抜き）ではオクルージョン問題が発生。
+v3.2では「ベース画像 → SAM2マスク → Geminiパーツ個別インペイント生成」に変更。
+
+```
+STAGE 1: ベース画像生成 → SD WebUI(優先) / Gemini Flash(フォールバック)
+STAGE 2: パーツ個別生成 → SAM2マスク + Geminiインペイント(依存グラフ順)
+```
 
 ## ディレクトリ構成
 
@@ -56,7 +67,7 @@ shiver/
 │       └── utils/        # レンダラー, 物理演算, アイドルアニメ, faceMapper
 ├── backend/         # FastAPI (画像生成, セグメンテーション, アバター管理)
 │   ├── routers/
-│   ├── services/
+│   ├── services/    # base_image_generator.py, parts_generator.py, sam2_service.py
 │   └── models/
 └── gpu-server/      # SAM2推論サーバー
 ```
@@ -72,9 +83,9 @@ shiver/
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| 1 MVP | 顔追跡+自動まばたき+手動PNGパーツ | 未着手 |
-| 2 コア自動化 | SD生成+SAM2分割+物理演算+表情 | - |
-| 3 フル自動化 | リップシンク+保存+OBS安定化 | - |
+| 1 MVP | 顔追跡+自動まばたき+手動PNGパーツ | 進行中 |
+| 2 コア自動化 | ベース生成+SAM2マスク+パーツ個別生成+物理演算+表情 | - |
+| 3 フル自動化 | リップシンク+保存+OBS安定化+Z-Index調整UI | - |
 | 4 ビジネス化 | SaaS+VTube Studio互換 | - |
 
 詳細タスク: @docs/TASKS.md
@@ -89,12 +100,19 @@ shiver/
 ## 重要な注意事項
 
 - SAM2へのランドマーク座標は必ず `normalized_to_pixel()` を通す
+- SAM2にはPoints + BBox両方を渡す（アニメドメインギャップ対策）
+- パーツ生成は白背景禁止。グリーンバック(#00FF00)必須 → `chroma_key_to_rgba()`で透過
+- SAM2マスクは `dilate_mask(dilation_px=3)` で膨張してからインペイントに渡す
 - PixiJS視差は skew 禁止。各スプライトのX/Yをparallax係数で個別移動
 - deltaTimeは `Math.min(deltaTime, 0.05)` で必ずクランプ
 - 目の描画順: white(500) → pupil(600) → upper_lid(700)
 - まばたき合成: `blink_face * auto_blink` の積
+- FaceBlendshape名: `eyeLookOutLeft`（`eyeLookOut_L`ではない）
+- ランドマーク数: 478（iris含む。468ではない）
 - CORS: localhost:5173 のみ許可（`*` は開発時のみ）
 - `.env` ファイルは絶対にGitコミットしない
+- Gemini APIは `.aio`（async client）を使う。同期版はイベントループをブロックする
+- Gemini 429エラーは `call_with_retry()` でExponential Backoff
 
 ## ワークフロールール
 
@@ -106,6 +124,8 @@ shiver/
 - タスク管理を行い、進捗に応じて `docs/TASKS.md` を更新する
 - ドキュメント・メモリは常に最新状態を維持する。古い記述は削除してよい
 - コンテキストが長くなったら `/compact` を実行する
+- APIを実装する際には、モデル名や使用方法などを公式ドキュメントを調べて確実に確認する
+- わからなくなったり、エラーの処理がうまくいかなくなった場合は、似たような事例がないかなどを公式ドキュメントや技術ブログを調べ、解決方法を探る
 
 ## 追加ルール
 

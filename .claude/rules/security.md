@@ -30,3 +30,6 @@
 - SynthID電子透かしが自動埋め込まれる
 - 商用利用前にGoogle利用規約を確認すること
 - APIキーはGoogle AI Studioで発行したものを使用
+- 必ず `.aio`（async client）を使う。同期版はイベントループをブロックする
+- 429レート制限にはExponential Backoff（`call_with_retry()`）で対応
+- 実験フェーズ: gemini-2.5-flash-image / 本番: gemini-3-pro-image-preview

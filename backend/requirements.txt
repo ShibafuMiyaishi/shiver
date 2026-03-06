@@ -1,0 +1,11 @@
+fastapi>=0.110.0
+uvicorn[standard]
+websockets
+httpx
+Pillow
+numpy
+pydantic>=2.0
+python-multipart
+aiofiles
+google-genai>=1.0.0
+python-dotenv

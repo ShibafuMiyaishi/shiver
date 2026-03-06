@@ -12,8 +12,11 @@ nvidia-smi                          # GPU認識確認
 
 # Phase 2 事前チェック
 curl http://localhost:8001/health   # GPU Server疎通
-curl http://localhost:7860/docs     # SD WebUI API確認
+curl http://localhost:7860/sdapi/v1/sd-models  # SD WebUI API確認
 ```
+
+ブラウザコンソールから `runHealthCheck()` を実行して全チェック通過を確認する。
+SD WebUIはPhase 1では任意（失敗しても続行可）。
 
 ## Frontend テスト方針
 
@@ -24,8 +27,10 @@ curl http://localhost:7860/docs     # SD WebUI API確認
 ## Backend テスト方針
 
 - APIエンドポイント: FastAPI TestClient で `/health`, `/generate`, `/segment` を検証
-- 画像生成: SDフォールバック→Geminiフォールバックの両経路をテスト
-- SAM2連携: ピクセル座標変換 (`normalized_to_pixel`) の入出力テスト
+- ベース画像生成: SDフォールバック→Geminiフォールバックの両経路をテスト
+- パーツ生成: PartsGeneratorの依存グラフ順実行・chroma_key_to_rgba透過処理をテスト
+- SAM2連携: ピクセル座標変換 (`normalized_to_pixel`) + BBox計算 (`compute_bbox_from_landmarks`) の入出力テスト
+- マスク膨張: `dilate_mask()` の入出力テスト
 
 ## テスト実行コマンド
 
@@ -44,3 +49,5 @@ cd gpu-server && .venv/Scripts/activate && python -m pytest
 
 各Phaseの完了条件は技術書 Section 18 に定義。
 条件を全て満たしたことを確認してからPhase番号を進める。
+
+Phase 2追加: パーツ生成品質チェック（17パーツ生成・キャラ一貫性・隠れ部分補完・重ね合わせ自然さ）。

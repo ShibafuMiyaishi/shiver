@@ -1,0 +1,6 @@
+fastapi>=0.110.0
+uvicorn[standard]
+Pillow
+numpy
+python-dotenv
+httpx
