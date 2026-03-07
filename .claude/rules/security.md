@@ -31,5 +31,9 @@
 - 商用利用前にGoogle利用規約を確認すること
 - APIキーはGoogle AI Studioで発行したものを使用
 - 必ず `.aio`（async client）を使う。同期版はイベントループをブロックする
-- 429レート制限にはExponential Backoff（`call_with_retry()`）で対応
-- 実験フェーズ: gemini-2.5-flash-image / 本番: gemini-3-pro-image-preview
+- `genai.Client`は`__init__`で1回だけ作成。毎回生成するとコネクション浪費
+- response_modalities: `["TEXT", "IMAGE"]`（公式推奨。`["IMAGE"]`単独は非推奨）
+- 429レート制限: `call_with_retry()`でretryDelay解析+リトライ（最大2回）
+- STAGE1: 順次生成（4〜6秒間隔）。並列はレート制限に引っかかる
+- STAGE2: semaphore=2 + レイヤー間待機（3〜5秒）
+- 実験フェーズ: `gemini-2.5-flash-image` / 本番: `gemini-3-pro-image-preview`

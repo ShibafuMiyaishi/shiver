@@ -27,7 +27,7 @@ SD WebUIはPhase 1では任意（失敗しても続行可）。
 ## Backend テスト方針
 
 - APIエンドポイント: FastAPI TestClient で `/health`, `/generate`, `/segment` を検証
-- ベース画像生成: SDフォールバック→Geminiフォールバックの両経路をテスト
+- ベース画像生成: Gemini優先→SDフォールバックの両経路をテスト
 - パーツ生成: PartsGeneratorの依存グラフ順実行・chroma_key_to_rgba透過処理をテスト
 - SAM2連携: ピクセル座標変換 (`normalized_to_pixel`) + BBox計算 (`compute_bbox_from_landmarks`) の入出力テスト
 - マスク膨張: `dilate_mask()` の入出力テスト

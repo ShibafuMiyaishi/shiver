@@ -79,14 +79,14 @@ shiver/
 - 型定義は `frontend/src/types/` に集約
 - コンポーネントは1ファイル1コンポーネント
 
-## 開発フェーズ（現在: Phase 1）
+## 開発フェーズ（現在: Phase 3 完了・Phase 4 未着手）
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| 1 MVP | 顔追跡+自動まばたき+手動PNGパーツ | 進行中 |
-| 2 コア自動化 | ベース生成+SAM2マスク+パーツ個別生成+物理演算+表情 | - |
-| 3 フル自動化 | リップシンク+保存+OBS安定化+Z-Index調整UI | - |
-| 4 ビジネス化 | SaaS+VTube Studio互換 | - |
+| 1 MVP | 顔追跡+自動まばたき+手動PNGパーツ | 完了 |
+| 2 コア自動化 | ベース生成+SAM2マスク+パーツ個別生成+物理演算+表情 | 完了 |
+| 3 フル自動化 | リップシンク+保存+OBS安定化+Z-Index調整UI | 完了 |
+| 4 ビジネス化 | SaaS+VTube Studio互換 | 未着手 |
 
 詳細タスク: @docs/TASKS.md
 
@@ -112,7 +112,11 @@ shiver/
 - CORS: localhost:5173 のみ許可（`*` は開発時のみ）
 - `.env` ファイルは絶対にGitコミットしない
 - Gemini APIは `.aio`（async client）を使う。同期版はイベントループをブロックする
-- Gemini 429エラーは `call_with_retry()` でExponential Backoff
+- genai.Clientは`__init__`で1回だけ作成して使い回す。毎回生成しない
+- Gemini 429エラーは `call_with_retry()` でretryDelay解析+リトライ（最大2回）
+- Gemini response_modalitiesは `["TEXT", "IMAGE"]` を使う（公式推奨）
+- STAGE1は順次生成（4〜6秒間隔）。並列はレート制限に引っかかる
+- STAGE2はsemaphore=2 + レイヤー間待機（3〜5秒）
 
 ## ワークフロールール
 

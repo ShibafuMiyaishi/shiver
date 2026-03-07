@@ -11,7 +11,7 @@ paths:
 ## パイプライン（変更禁止）
 
 ```
-プロンプト → SD/Geminiベース画像生成(STAGE1) → SAM2マスク生成(Points+BBox)
+プロンプト → Gemini/SDベース画像生成(STAGE1) → SAM2マスク生成(Points+BBox)
 → Geminiパーツ個別インペイント生成(STAGE2・依存グラフ順) → chroma_key_to_rgba透過
 → PixiJSリギング → リアルタイム駆動 → OBS出力
 ```
@@ -20,10 +20,12 @@ paths:
 
 - STAGE 1 (BaseImageGenerator): Gemini 2.5 Flash Image(優先) / SD WebUI+Illustrious XL v2.0(フォールバック)
 - STAGE 2 (PartsGenerator): Geminiマスクインペイントでパーツ個別生成
-  - 依存グラフ(GENERATION_LAYERS)に基づきレイヤー順次・レイヤー内並列
+  - 依存グラフ(GENERATION_LAYERS)に基づきレイヤー順次・レイヤー内並列(semaphore=2)
+  - レイヤー間に3〜5秒待機（レート制限回避）
   - グリーンバック(#00FF00)指定必須。白背景禁止
   - chroma_key_to_rgba()で透過処理
-  - call_with_retry()で429エラーに対応
+  - call_with_retry()でretryDelay解析+リトライ（最大2回）
+  - response_modalities=["TEXT", "IMAGE"]（公式推奨）
 
 ## Frontend アーキテクチャ
 
@@ -59,14 +61,13 @@ hair_back(100) → face(300) → brow(400) → white(500) → pupil(600)
 
 - `main.py`: FastAPIアプリ初期化 + CORS + ルーターマウント
 - `routers/`: エンドポイント定義のみ。ビジネスロジックは `services/` に書く
-- `services/base_image_generator.py`: STAGE 1 ベース画像生成（SD/Geminiフォールバック）
+- `services/base_image_generator.py`: STAGE 1 ベース画像生成（Gemini優先/SDフォールバック・順次生成）
 - `services/parts_generator.py`: STAGE 2 パーツ個別生成（Geminiインペイント・依存グラフ）
 - `services/sam2_service.py`: SAM2マスク生成 + `normalized_to_pixel()` + `compute_bbox_from_landmarks()` + `dilate_mask()`
 
 ## GPU Server アーキテクチャ
 
-- `server.py`: FastAPIアプリ + `/health`, `/segment` エンドポイント
-- `sam2_api.py`: SAM2モデルロード + 推論ロジック（Points+BBox対応）
+- `server.py`: FastAPIアプリ + SAM2モデルロード + `/health`, `/segment` エンドポイント（Points+BBox対応）
 - PyTorchは `device = "cuda" if torch.cuda.is_available() else "cpu"` で自動選択
 
 ## 通信プロトコル
