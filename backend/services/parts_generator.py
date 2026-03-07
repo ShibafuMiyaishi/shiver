@@ -11,7 +11,7 @@ from google import genai
 from google.genai import types
 
 # モデル設定
-EXPERIMENT_MODEL = "gemini-2.5-flash-preview-05-20"
+EXPERIMENT_MODEL = "gemini-2.5-flash-image"
 PRODUCTION_MODEL = "gemini-3-pro-image-preview"
 CURRENT_MODEL = EXPERIMENT_MODEL
 

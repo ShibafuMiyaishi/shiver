@@ -18,7 +18,7 @@ paths:
 
 ## 画像生成2段階構成（v3.2）
 
-- STAGE 1 (BaseImageGenerator): SD WebUI+AnythingV5(優先) / Gemini 2.5 Flash(フォールバック)
+- STAGE 1 (BaseImageGenerator): Gemini 2.5 Flash Image(優先) / SD WebUI+Illustrious XL v2.0(フォールバック)
 - STAGE 2 (PartsGenerator): Geminiマスクインペイントでパーツ個別生成
   - 依存グラフ(GENERATION_LAYERS)に基づきレイヤー順次・レイヤー内並列
   - グリーンバック(#00FF00)指定必須。白背景禁止

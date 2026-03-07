@@ -42,7 +42,7 @@ cd C:\dev\stable-diffusion-webui && .\webui-user.bat
 | Frontend | React 18 + TypeScript 5 + Vite 5 + PixiJS 7 + MediaPipe + Zustand + TailwindCSS |
 | Backend | FastAPI + Python 3.12 (localhost:8000) |
 | GPU Server | FastAPI + PyTorch CUDA + SAM2 (localhost:8001) |
-| 画像生成(STAGE1) | SD WebUI + AnythingV5 / Waifu-Inpaint-XL (localhost:7860) |
+| 画像生成(STAGE1) | Gemini 2.5 Flash Image(優先) / SD WebUI + Illustrious XL v2.0(フォールバック) |
 | 画像生成(STAGE2) | Gemini 2.5 Flash Image(実験) / Gemini 3 Pro Image(本番) |
 
 ## v3.2 コアアーキテクチャ: 積み上げ方式
@@ -51,7 +51,7 @@ cd C:\dev\stable-diffusion-webui && .\webui-user.bat
 v3.2では「ベース画像 → SAM2マスク → Geminiパーツ個別インペイント生成」に変更。
 
 ```
-STAGE 1: ベース画像生成 → SD WebUI(優先) / Gemini Flash(フォールバック)
+STAGE 1: ベース画像生成 → Gemini Flash Image(優先) / SD WebUI(フォールバック)
 STAGE 2: パーツ個別生成 → SAM2マスク + Geminiインペイント(依存グラフ順)
 ```
 

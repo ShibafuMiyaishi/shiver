@@ -100,15 +100,23 @@ export default function App() {
       }
       landmarksRef.current = landmarks;
 
-      // Step 2: SAM2セグメンテーション
+      // Step 2: ベース画像の実サイズを取得（Gemini生成画像は512×768とは限らない）
+      const imgDims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = () => reject(new Error("画像サイズの取得に失敗しました"));
+        img.src = `data:image/png;base64,${imageB64}`;
+      });
+
+      // Step 3: SAM2セグメンテーション
       const segRes = await fetch(`${apiBase}/api/v1/segment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image_b64: imageB64,
           landmarks: landmarks.map(lm => ({ x: lm.x, y: lm.y, z: lm.z })),
-          img_width: 512,
-          img_height: 768,
+          img_width: imgDims.width,
+          img_height: imgDims.height,
         }),
       });
       if (!segRes.ok) throw new Error("セグメンテーションに失敗しました");
@@ -119,7 +127,7 @@ export default function App() {
         if (r.mask_b64) masks[partId] = r.mask_b64;
       }
 
-      // Step 3: パーツ生成
+      // Step 4: パーツ生成
       const partsRes = await fetch(`${apiBase}/api/v1/generate-parts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
