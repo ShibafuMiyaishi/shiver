@@ -1,7 +1,10 @@
 """STAGE 2: パーツ個別生成（v3.2 マスクインペイント方式）"""
 import asyncio
 import base64
+import logging
 import random
+import re
+import sys
 from io import BytesIO
 
 import cv2
@@ -10,10 +13,28 @@ from PIL import Image
 from google import genai
 from google.genai import types
 
+# UTF-8ログ設定
+logger = logging.getLogger("shiver.PartsGenerator")
+if not logger.handlers:
+    logger.setLevel(logging.DEBUG)
+    _h = logging.StreamHandler(
+        stream=open(sys.stdout.fileno(), mode="w", encoding="utf-8", closefd=False)
+    )
+    _h.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s %(message)s", "%H:%M:%S"))
+    logger.addHandler(_h)
+
 # モデル設定
 EXPERIMENT_MODEL = "gemini-2.5-flash-image"
 PRODUCTION_MODEL = "gemini-3-pro-image-preview"
 CURRENT_MODEL = EXPERIMENT_MODEL
+
+
+def _parse_retry_delay(error_str: str) -> float:
+    """429エラーからAPIが指定するretryDelayを抽出する"""
+    match = re.search(r"retry.*?(\d+\.?\d*)s", error_str)
+    if match:
+        return float(match.group(1))
+    return 15.0
 
 
 def chroma_key_to_rgba(image_b64: str, part_name: str) -> str:
@@ -24,7 +45,7 @@ def chroma_key_to_rgba(image_b64: str, part_name: str) -> str:
     if img.mode == "RGBA":
         arr = np.array(img)
         if arr[:, :, 3].min() < 255:
-            print(f"[chroma_key] {part_name}: 既にRGBA透過")
+            logger.info(f"{part_name}: 既にRGBA透過")
             return image_b64
 
     img_rgb = img.convert("RGB")
@@ -44,30 +65,24 @@ def chroma_key_to_rgba(image_b64: str, part_name: str) -> str:
         result = Image.fromarray(cv2.cvtColor(arr_rgba, cv2.COLOR_BGRA2RGBA))
         buf = BytesIO()
         result.save(buf, format="PNG")
-        print(
-            f"[chroma_key] {part_name}: グリーンバック除去 "
-            f"(緑比率: {green_ratio:.1%})"
-        )
+        logger.info(f"{part_name}: グリーンバック除去 (緑比率: {green_ratio:.1%})")
         return base64.b64encode(buf.getvalue()).decode()
 
-    print(
-        f"[chroma_key] {part_name}: グリーン未検出 "
-        f"(緑比率: {green_ratio:.1%}) → rembg試行"
-    )
+    logger.warning(f"{part_name}: グリーン未検出 (緑比率: {green_ratio:.1%}) → rembg試行")
     try:
         from rembg import remove
 
         img_rgba = remove(img.convert("RGBA"))
         buf = BytesIO()
         img_rgba.save(buf, format="PNG")
-        print(f"[chroma_key] {part_name}: rembg背景除去完了")
+        logger.info(f"{part_name}: rembg背景除去完了")
         return base64.b64encode(buf.getvalue()).decode()
     except ImportError:
-        print(f"[chroma_key] {part_name}: rembg未インストール")
+        logger.warning(f"{part_name}: rembg未インストール")
     except Exception as e:
-        print(f"[chroma_key] {part_name}: rembg失敗: {e}")
+        logger.error(f"{part_name}: rembg失敗: {e}")
 
-    print(f"[chroma_key] {part_name}: 透過化失敗。手動補正UIで対応してください")
+    logger.error(f"{part_name}: 透過化失敗。手動補正UIで対応してください")
     buf = BytesIO()
     img.convert("RGBA").save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode()
@@ -78,11 +93,11 @@ ensure_rgba = chroma_key_to_rgba
 
 async def call_with_retry(
     coro_fn,  # type: ignore[type-arg]
-    max_retries: int = 5,
-    base_delay: float = 2.0,
+    max_retries: int = 2,
+    base_delay: float = 5.0,
 ):  # type: ignore[return]
-    """429エラー時にExponential Backoffで自動リトライ"""
-    for attempt in range(max_retries):
+    """429エラー時にretryDelayを尊重してリトライ（最大2回=合計3試行）"""
+    for attempt in range(max_retries + 1):
         try:
             return await coro_fn()
         except Exception as e:
@@ -92,11 +107,13 @@ async def call_with_retry(
                 or "rate" in error_str
                 or "quota" in error_str
             )
-            if not is_rate_limit or attempt == max_retries - 1:
+            if not is_rate_limit or attempt == max_retries:
                 raise
-            wait_sec = base_delay * (2**attempt) + random.uniform(0, 1)
-            print(
-                f"[Retry] レート制限 429。{wait_sec:.1f}秒後にリトライ "
+            # APIが指定するretryDelayを優先、なければExponential Backoff
+            api_delay = _parse_retry_delay(error_str)
+            wait_sec = max(api_delay, base_delay * (2**attempt)) + random.uniform(1, 3)
+            logger.warning(
+                f"レート制限 429 → {wait_sec:.0f}秒待機後リトライ "
                 f"({attempt + 1}/{max_retries})"
             )
             await asyncio.sleep(wait_sec)
@@ -161,22 +178,25 @@ class PartsGenerator:
         self.client = genai.Client(api_key=gemini_api_key)
         self.async_client = self.client.aio
         self.model = CURRENT_MODEL
-        print(f"[PartsGenerator] 使用モデル: {self.model}")
+        logger.info(f"使用モデル: {self.model}")
 
     async def generate_all_parts(
         self,
         base_image_b64: str,
         masks: dict[str, str],
-        semaphore_size: int = 4,
+        semaphore_size: int = 2,
     ) -> dict[str, str | None]:
         semaphore = asyncio.Semaphore(semaphore_size)
         completed: dict[str, str | None] = {}
 
         for layer_idx, layer in enumerate(self.GENERATION_LAYERS):
-            print(
-                f"[PartsGenerator] LAYER {layer_idx} 生成開始: "
-                f"{list(layer.keys())}"
-            )
+            logger.info(f"LAYER {layer_idx} 生成開始: {list(layer.keys())}")
+
+            # レイヤー間に待機を入れてレート制限を回避
+            if layer_idx > 0:
+                inter_delay = 3.0 + random.uniform(0, 2)
+                logger.info(f"レイヤー間待機: {inter_delay:.0f}秒")
+                await asyncio.sleep(inter_delay)
 
             layer_tasks = {
                 part_name: self._generate_single_part(
@@ -199,11 +219,11 @@ class PartsGenerator:
 
             for part_name, result in zip(layer_tasks.keys(), results):
                 if isinstance(result, Exception):
-                    print(f"[PartsGenerator] {part_name} 生成失敗: {result}")
+                    logger.error(f"{part_name} 生成失敗: {result}")
                     completed[part_name] = None
                 else:
                     completed[part_name] = result
-                    print(f"[PartsGenerator] {part_name} 完了")
+                    logger.info(f"{part_name} 完了")
 
         return completed
 
@@ -295,7 +315,7 @@ class PartsGenerator:
             model=self.model,
             contents=contents,
             config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"]
+                response_modalities=["TEXT", "IMAGE"]
             ),
         )
         for part in response.candidates[0].content.parts:

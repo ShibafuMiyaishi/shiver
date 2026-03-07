@@ -1,11 +1,32 @@
 """STAGE 1: ベース画像生成"""
 import asyncio
 import base64
+import logging
 import random
+import re
+import sys
 
 import httpx
 from google import genai
 from google.genai import types
+
+# UTF-8ログ設定
+logger = logging.getLogger("shiver.BaseImageGenerator")
+if not logger.handlers:
+    logger.setLevel(logging.DEBUG)
+    _h = logging.StreamHandler(
+        stream=open(sys.stdout.fileno(), mode="w", encoding="utf-8", closefd=False)
+    )
+    _h.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s %(message)s", "%H:%M:%S"))
+    logger.addHandler(_h)
+
+
+def _parse_retry_delay(error_str: str) -> float:
+    """429エラーからAPIが指定するretryDelayを抽出する"""
+    match = re.search(r"retry.*?(\d+\.?\d*)s", error_str)
+    if match:
+        return float(match.group(1))
+    return 15.0  # デフォルト15秒
 
 
 class BaseImageGenerator:
@@ -35,22 +56,33 @@ class BaseImageGenerator:
     def __init__(self, sd_url: str, gemini_api_key: str) -> None:
         self.sd_url = sd_url
         self.gemini_api_key = gemini_api_key
+        # Gemini clientは1回だけ作成して使い回す
+        if gemini_api_key and gemini_api_key != "your_google_ai_studio_api_key_here":
+            self._gemini_client = genai.Client(api_key=gemini_api_key)
+            self._gemini_async = self._gemini_client.aio
+        else:
+            self._gemini_client = None
+            self._gemini_async = None
 
     async def generate(self, prompt: str, num_images: int = 4) -> dict:
         # Gemini優先
-        if self.gemini_api_key and self.gemini_api_key != "your_google_ai_studio_api_key_here":
+        if self._gemini_async:
             try:
                 images = await self._generate_gemini(prompt, num_images)
                 if images:
+                    logger.info(f"Gemini生成成功: {len(images)}枚")
                     return {"images": images, "backend_used": "gemini"}
+                logger.warning("Gemini: 画像が0枚（クォータ超過の可能性）")
             except Exception as e:
-                print(f"[BaseImageGenerator] Gemini失敗 → SDにフォールバック: {e}")
+                logger.error(f"Gemini失敗 → SDにフォールバック: {e}")
 
         # SDフォールバック
         try:
             images = await self._generate_sd(prompt, num_images)
+            logger.info(f"SD生成成功: {len(images)}枚")
             return {"images": images, "backend_used": "stable_diffusion"}
         except Exception as e:
+            logger.error(f"SDも失敗: {e}")
             raise RuntimeError(
                 f"ベース画像生成に失敗しました（Gemini・SDともに失敗）: {e}"
             ) from e
@@ -58,8 +90,6 @@ class BaseImageGenerator:
     async def _generate_gemini(
         self, prompt: str, num_images: int
     ) -> list[str]:
-        sync_client = genai.Client(api_key=self.gemini_api_key)
-        async_client = sync_client.aio
         anime_prompt = (
             f"Create a high-quality anime-style 2D illustration. "
             f"Front-facing, upper body, white background. "
@@ -67,36 +97,50 @@ class BaseImageGenerator:
             f"vibrant colors, and expressive big eyes. "
             f"Character description: {prompt}"
         )
-        tasks = [
-            self._single_gemini_generate(async_client, anime_prompt)
-            for _ in range(num_images)
-        ]
-        images = await asyncio.gather(*tasks)
-        return [img for img in images if img is not None]
+        # 1枚ずつ順次生成（レート制限回避）
+        images: list[str] = []
+        for i in range(num_images):
+            if i > 0:
+                delay = 4.0 + random.uniform(0, 2)
+                logger.info(f"次の画像まで{delay:.0f}秒待機 ({i+1}/{num_images}枚目)")
+                await asyncio.sleep(delay)
+            img = await self._single_gemini_generate(anime_prompt, i + 1)
+            if img:
+                images.append(img)
+                logger.info(f"Gemini {i+1}/{num_images}枚目 生成成功")
+            else:
+                logger.warning(f"Gemini {i+1}/{num_images}枚目 失敗（スキップ）")
+        return images
 
     async def _single_gemini_generate(
-        self, async_client: genai.Client, prompt: str
+        self, prompt: str, image_num: int = 1
     ) -> str | None:
-        for attempt in range(5):
+        """1枚のGemini画像生成。リトライは最大1回（合計2回試行）"""
+        for attempt in range(2):
             try:
-                response = await async_client.models.generate_content(
+                response = await self._gemini_async.models.generate_content(
                     model="gemini-2.5-flash-image",
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"]
+                        response_modalities=["TEXT", "IMAGE"]
                     ),
                 )
                 for part in response.candidates[0].content.parts:
                     if part.inline_data is not None:
                         return base64.b64encode(part.inline_data.data).decode()
+                logger.warning(f"画像{image_num}: レスポンスに画像データなし")
+                return None
             except Exception as e:
                 error_str = str(e).lower()
                 if "429" in error_str or "rate" in error_str or "quota" in error_str:
-                    wait = 2.0 * (2 ** attempt) + random.uniform(0, 1)
-                    print(f"[BaseImageGenerator] レート制限 → {wait:.1f}秒後にリトライ ({attempt + 1}/5)")
+                    if attempt >= 1:
+                        logger.error(f"画像{image_num}: クォータ超過。リトライ停止")
+                        return None
+                    wait = _parse_retry_delay(error_str) + random.uniform(1, 3)
+                    logger.warning(f"画像{image_num}: レート制限 → {wait:.0f}秒待機後リトライ")
                     await asyncio.sleep(wait)
                     continue
-                print(f"[BaseImageGenerator] Gemini生成失敗: {e}")
+                logger.error(f"画像{image_num}: Gemini生成失敗: {e}")
                 return None
         return None
 

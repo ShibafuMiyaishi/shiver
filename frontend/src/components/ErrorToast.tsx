@@ -14,7 +14,7 @@ export default function ErrorToast({ message, onDismiss }: ErrorToastProps) {
       const timer = setTimeout(() => {
         setVisible(false);
         setTimeout(onDismiss, 300);
-      }, 5000);
+      }, 15000);
       return () => clearTimeout(timer);
     }
   }, [message, onDismiss]);
